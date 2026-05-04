@@ -29,7 +29,6 @@ async fn handle_client(
         let line = line.trim().to_string();
         println!("Reçu : {}", line);
 
-        // Format attendu : SUBSCRIBE namespace.key
         if line.starts_with("SUBSCRIBE ") {
             let parts: Vec<&str> = line.splitn(2, ' ').collect();
             if parts.len() == 2 {
@@ -38,7 +37,6 @@ async fn handle_client(
                     let namespace = key_parts[0].to_string();
                     let key = key_parts[1].to_string();
 
-                    // On s'abonne au broadcast
                     let mut rx = {
                         let store = store.read().unwrap();
                         store.sender.subscribe()
@@ -51,7 +49,6 @@ async fn handle_client(
                         .await
                         .unwrap();
 
-                    // On écoute les mises à jour
                     loop {
                         match rx.recv().await {
                             Ok((ns, k, value)) => {
@@ -67,6 +64,24 @@ async fn handle_client(
                     }
                 } else {
                     writer.write_all(b"ERROR format: SUBSCRIBE namespace.key\n").await.unwrap();
+                }
+            }
+        } else if line.starts_with("SET ") {
+            let parts: Vec<&str> = line.splitn(2, ' ').collect();
+            if parts.len() == 2 {
+                let kv: Vec<&str> = parts[1].splitn(2, '=').collect();
+                if kv.len() == 2 {
+                    let key_parts: Vec<&str> = kv[0].splitn(2, '.').collect();
+                    if key_parts.len() == 2 {
+                        let namespace = key_parts[0];
+                        let key = key_parts[1];
+                        let value = kv[1];
+                        {
+                            let mut store = store.write().unwrap();
+                            store.set(namespace, key, value.to_string());
+                        }
+                        writer.write_all(b"OK\n").await.unwrap();
+                    }
                 }
             }
         } else {
